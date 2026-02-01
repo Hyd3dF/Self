@@ -1,25 +1,25 @@
 const cron = require('node-cron');
 const PocketBase = require('pocketbase/cjs');
-const finnhub = require('finnhub');
 const admin = require('firebase-admin');
 require('dotenv').config();
 
 // --- 1. AYARLAR ---
 
-// Firebase (Bildirim) Kurulumu
+// Firebase (Bildirim) Kurulumu - Temizleyici Mod
 try {
-    let serviceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT;
-    
-    if (!serviceAccountRaw) {
+    let raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+    if (!raw) {
         console.log("⚠️ UYARI: FIREBASE_SERVICE_ACCOUNT kutusu boş!");
     } else {
-        // Eğer Coolify şifreyi tırnak içine aldıysa temizle
-        if (serviceAccountRaw.startsWith('"') && serviceAccountRaw.endsWith('"')) {
-             serviceAccountRaw = serviceAccountRaw.slice(1, -1);
+        // 1. Tırnak temizliği
+        if (raw.startsWith('"') && raw.endsWith('"')) {
+            raw = raw.slice(1, -1);
         }
+        // 2. Ters çizgi temizliği (Bozuk formatı düzeltir)
+        // \" (ters çizgi tırnak) gördüğü yeri " (tırnak) yapar.
+        const cleanJson = raw.replace(/\\"/g, '"');
 
-        // JSON'u olduğu gibi çevirmeyi dene (Benim önceki replace kodumu kaldırdım)
-        const serviceAccount = JSON.parse(serviceAccountRaw);
+        const serviceAccount = JSON.parse(cleanJson);
 
         if (!admin.apps.length) {
             admin.initializeApp({
@@ -30,39 +30,18 @@ try {
     }
 } catch (e) {
     console.error("🚨 Firebase Hatası:", e.message);
+    // Hatanın detayını görelim ki gerekirse elle düzeltelim
+    console.log("Gelen Bozuk Veri Başı:", process.env.FIREBASE_SERVICE_ACCOUNT?.substring(0, 20));
 }
 
 // PocketBase (Veritabanı) Kurulumu
 const pb = new PocketBase(process.env.PB_URL);
 pb.autoCancellation(false);
 
-// Finnhub (Borsa) Kurulumu
-let finnhubClient = null;
-try {
-    // Hem standart hem de 'default' yöntemini dene
-    const ApiClient = finnhub.ApiClient || (finnhub.default && finnhub.default.ApiClient);
-    
-    if (ApiClient) {
-        const api_key = ApiClient.instance.authentications['api_key'];
-        api_key.apiKey = process.env.FINNHUB_API_KEY;
-        finnhubClient = new finnhub.DefaultApi();
-        console.log("✅ Finnhub (Borsa) bağlantısı hazır.");
-    } else {
-        console.error("⚠️ Finnhub yapısı çözülemedi. Mevcut içerik:", Object.keys(finnhub));
-    }
-} catch (err) {
-    console.error("⚠️ Finnhub kurulum hatası:", err.message);
-}
-
 // --- 2. ROBOT MANTIĞI ---
 
 async function checkSignals() {
-    console.log('🔍 Sinyaller kontrol ediliyor...');
-    
-    if (!finnhubClient) {
-        console.log('❌ Borsa istemcisi çalışmadığı için işlem yapılamıyor.');
-        return;
-    }
+    console.log('🔍 Sinyaller taranıyor...');
 
     try {
         // Yönetici girişi yap
@@ -81,10 +60,19 @@ async function checkSignals() {
 
         // Her sinyal için tek tek fiyat kontrolü yap
         for (const signal of signals) {
-            finnhubClient.quote(signal.pair, async (error, data, response) => {
-                if (error) {
-                    console.error(`⚠️ Fiyat çekilemedi (${signal.pair}):`, error);
-                    return;
+            
+            // --- YENİ YÖNTEM: Kütüphanesiz Doğrudan Erişim (Fetch) ---
+            const symbol = signal.pair;
+            const token = process.env.FINNHUB_API_KEY;
+            const url = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${token}`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!data || typeof data.c === 'undefined') {
+                    console.error(`⚠️ Finnhub verisi boş geldi: ${symbol}`);
+                    continue;
                 }
 
                 const currentPrice = data.c; // Anlık Fiyat
@@ -99,9 +87,9 @@ async function checkSignals() {
                     else if (currentPrice >= signal.sl) result = 'LOST';
                 }
 
-                // Eğer işlem bittiyse (WON veya LOST olduysa)
+                // Eğer işlem bittiyse
                 if (result) {
-                    console.log(`🔔 SONUÇ: ${signal.pair} -> ${result}`);
+                    console.log(`🔔 SONUÇ: ${signal.pair} -> ${result} (Fiyat: ${currentPrice})`);
                     
                     // A) Veritabanını güncelle
                     await pb.collection('signals').update(signal.id, {
@@ -123,11 +111,14 @@ async function checkSignals() {
                             await admin.messaging().send(message);
                             console.log('📲 Bildirim gönderildi.');
                         } catch (err) {
-                            console.error('Bildirim hatası:', err);
+                            console.error('Bildirim hatası:', err.message);
                         }
                     }
                 }
-            });
+
+            } catch (fetchError) {
+                console.error(`⚠️ Borsa Bağlantı Hatası (${symbol}):`, fetchError.message);
+            }
         }
 
     } catch (err) {
@@ -137,10 +128,10 @@ async function checkSignals() {
 
 // --- 3. BAŞLATMA ---
 
-console.log('🚀 Worker başlatıldı. Her 5 dakikada bir piyasayı tarayacak.');
+console.log('🚀 Worker başlatıldı (v3 - Fetch Modu). Her 5 dakikada bir çalışacak.');
 
 // Zamanlayıcıyı kur (Her 5 dakikada bir)
 cron.schedule('*/5 * * * *', checkSignals);
 
-// Açılır açılmaz bir kere çalıştır ki çalıştığını görelim
+// Açılır açılmaz bir kere çalıştır
 checkSignals();
