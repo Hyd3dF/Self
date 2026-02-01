@@ -5,21 +5,28 @@ require('dotenv').config();
 
 // --- 1. AYARLAR ---
 
-// Firebase (Bildirim) Kurulumu - Temizleyici Mod
+// Firebase (Bildirim) Kurulumu - TAMİR MODU 🛠️
 try {
     let raw = process.env.FIREBASE_SERVICE_ACCOUNT;
     if (!raw) {
         console.log("⚠️ UYARI: FIREBASE_SERVICE_ACCOUNT kutusu boş!");
     } else {
-        // 1. Tırnak temizliği
+        // A) Dış temizlik: Eğer Coolify şifreyi tırnak içine aldıysa temizle
         if (raw.startsWith('"') && raw.endsWith('"')) {
             raw = raw.slice(1, -1);
         }
-        // 2. Ters çizgi temizliği (Bozuk formatı düzeltir)
-        // \" (ters çizgi tırnak) gördüğü yeri " (tırnak) yapar.
+
+        // B) Format temizliği: \" (ters çizgi tırnak) gördüğün yeri " (tırnak) yap
         const cleanJson = raw.replace(/\\"/g, '"');
 
+        // C) JSON'a çevir
         const serviceAccount = JSON.parse(cleanJson);
+
+        // D) KRİTİK HAMLE: Private Key Tamiri 🚑
+        // Anahtarın içindeki yapışık satırları (\\n) gerçek satır başı (\n) ile değiştir.
+        if (serviceAccount.private_key) {
+            serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+        }
 
         if (!admin.apps.length) {
             admin.initializeApp({
@@ -30,8 +37,6 @@ try {
     }
 } catch (e) {
     console.error("🚨 Firebase Hatası:", e.message);
-    // Hatanın detayını görelim ki gerekirse elle düzeltelim
-    console.log("Gelen Bozuk Veri Başı:", process.env.FIREBASE_SERVICE_ACCOUNT?.substring(0, 20));
 }
 
 // PocketBase (Veritabanı) Kurulumu
@@ -58,10 +63,8 @@ async function checkSignals() {
             return;
         }
 
-        // Her sinyal için tek tek fiyat kontrolü yap
+        // Her sinyal için tek tek fiyat kontrolü yap (Kütüphanesiz Fetch Yöntemi)
         for (const signal of signals) {
-            
-            // --- YENİ YÖNTEM: Kütüphanesiz Doğrudan Erişim (Fetch) ---
             const symbol = signal.pair;
             const token = process.env.FINNHUB_API_KEY;
             const url = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${token}`;
@@ -128,10 +131,7 @@ async function checkSignals() {
 
 // --- 3. BAŞLATMA ---
 
-console.log('🚀 Worker başlatıldı (v3 - Fetch Modu). Her 5 dakikada bir çalışacak.');
+console.log('🚀 Worker başlatıldı (v4 - Tamir Modu). Her 5 dakikada bir çalışacak.');
 
-// Zamanlayıcıyı kur (Her 5 dakikada bir)
 cron.schedule('*/5 * * * *', checkSignals);
-
-// Açılır açılmaz bir kere çalıştır
 checkSignals();
