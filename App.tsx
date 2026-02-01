@@ -11,6 +11,16 @@ import ECommerceTabs from './src/navigation/ECommerceTabs';
 import ProductDetailScreen from './src/screens/ecommerce/ProductDetailScreen';
 import SignalDetailScreen from './src/screens/ecommerce/SignalDetailScreen';
 import { colors } from './src/theme/colors';
+import * as Notifications from 'expo-notifications';
+
+// Configure notifications to show even when app is in foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 const Stack = createNativeStackNavigator();
 

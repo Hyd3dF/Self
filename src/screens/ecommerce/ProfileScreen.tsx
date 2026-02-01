@@ -5,10 +5,34 @@ import { colors, spacing, typography, borderRadius } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
 import { haptic } from '../../services/haptics';
 import { LogOut, User, Bell, Shield, ChevronRight, Moon, Globe } from 'lucide-react-native';
+import * as Notifications from 'expo-notifications';
 
 const ProfileScreen = () => {
     const { logout } = useAuth();
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+    const handleTestNotification = async () => {
+        // 1. Permission Check
+        const { status } = await Notifications.getPermissionsAsync();
+
+        if (status !== 'granted') {
+            const { status: newStatus } = await Notifications.requestPermissionsAsync();
+            if (newStatus !== 'granted') {
+                alert('Please enable notifications in settings!');
+                return;
+            }
+        }
+
+        // 2. Schedule Test Notification
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: "🔔 Notification Test Successful!",
+                body: "Your server connection is active. You will hear this sound for trade results.",
+                sound: 'default',
+            },
+            trigger: null, // null = Send immediately
+        });
+    };
 
     const handleLogout = () => {
         haptic.medium();
@@ -73,6 +97,13 @@ const ProfileScreen = () => {
                                 thumbColor={colors.text}
                             />
                         }
+                    />
+                    <View style={styles.separator} />
+                    <MenuItem
+                        icon={Bell}
+                        title="Test Notification"
+                        onPress={handleTestNotification}
+                        value={<Text style={[styles.valueText, { color: colors.primary }]}>Test</Text>}
                     />
                     <View style={styles.separator} />
                     <MenuItem icon={Moon} title="Dark Mode" value={<Text style={styles.valueText}>On</Text>} />
