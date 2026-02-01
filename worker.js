@@ -6,41 +6,41 @@ require('dotenv').config();
 
 // --- 1. AYARLAR ---
 
-// Firebase (Bildirim) Kurulumu - GÜVENLİ MOD
+// Firebase (Bildirim) Kurulumu
 try {
-    let serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+    let serviceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT;
     
-    // Eğer şifre boşsa uyarı ver
-    if (!serviceAccount) {
+    if (!serviceAccountRaw) {
         console.log("⚠️ UYARI: FIREBASE_SERVICE_ACCOUNT kutusu boş!");
     } else {
-        // Eğer kullanıcı yanlışlıkla tırnak içinde kopyaladıysa temizle
-        if (typeof serviceAccount === 'string' && serviceAccount.startsWith('"') && serviceAccount.endsWith('"')) {
-             serviceAccount = serviceAccount.slice(1, -1);
+        // Eğer Coolify şifreyi tırnak içine aldıysa temizle
+        if (serviceAccountRaw.startsWith('"') && serviceAccountRaw.endsWith('"')) {
+             serviceAccountRaw = serviceAccountRaw.slice(1, -1);
         }
-        // Bozuk karakterleri temizle
-        serviceAccount = serviceAccount.replace(/\\/g, ""); 
-        
+
+        // JSON'u olduğu gibi çevirmeyi dene (Benim önceki replace kodumu kaldırdım)
+        const serviceAccount = JSON.parse(serviceAccountRaw);
+
         if (!admin.apps.length) {
             admin.initializeApp({
-                credential: admin.credential.cert(JSON.parse(serviceAccount))
+                credential: admin.credential.cert(serviceAccount)
             });
             console.log("✅ Firebase (Bildirim) bağlantısı başarılı.");
         }
     }
 } catch (e) {
-    console.error("🚨 Firebase Hatası (Şifre formatı bozuk olabilir):", e.message);
+    console.error("🚨 Firebase Hatası:", e.message);
 }
 
 // PocketBase (Veritabanı) Kurulumu
 const pb = new PocketBase(process.env.PB_URL);
 pb.autoCancellation(false);
 
-// Finnhub (Borsa) Kurulumu - HATASIZ MOD
+// Finnhub (Borsa) Kurulumu
 let finnhubClient = null;
 try {
-    // Versiyon uyuşmazlığını çözen sihirli satır:
-    const ApiClient = finnhub.ApiClient || finnhub.default?.ApiClient;
+    // Hem standart hem de 'default' yöntemini dene
+    const ApiClient = finnhub.ApiClient || (finnhub.default && finnhub.default.ApiClient);
     
     if (ApiClient) {
         const api_key = ApiClient.instance.authentications['api_key'];
@@ -48,7 +48,7 @@ try {
         finnhubClient = new finnhub.DefaultApi();
         console.log("✅ Finnhub (Borsa) bağlantısı hazır.");
     } else {
-        console.error("⚠️ Finnhub kütüphanesi yüklenemedi (Yapı uyumsuz).");
+        console.error("⚠️ Finnhub yapısı çözülemedi. Mevcut içerik:", Object.keys(finnhub));
     }
 } catch (err) {
     console.error("⚠️ Finnhub kurulum hatası:", err.message);
