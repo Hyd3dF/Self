@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Switch, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, borderRadius } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
@@ -76,6 +76,13 @@ const ProfileScreen = () => {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
+                <View style={{ alignItems: 'center', marginBottom: spacing.m }}>
+                    <Image
+                        source={require('../../../assets/icon.png')}
+                        style={{ width: 80, height: 80, borderRadius: 20 }}
+                        resizeMode="contain"
+                    />
+                </View>
                 <Text style={styles.title}>Settings</Text>
             </View>
 
