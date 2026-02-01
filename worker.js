@@ -6,32 +6,64 @@ require('dotenv').config();
 
 // --- 1. AYARLAR ---
 
-// Firebase (Bildirim) Kurulumu
+// Firebase (Bildirim) Kurulumu - GÜVENLİ MOD
 try {
-    if (!admin.apps.length) {
-        admin.initializeApp({
-            credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
-        });
+    let serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+    
+    // Eğer şifre boşsa uyarı ver
+    if (!serviceAccount) {
+        console.log("⚠️ UYARI: FIREBASE_SERVICE_ACCOUNT kutusu boş!");
+    } else {
+        // Eğer kullanıcı yanlışlıkla tırnak içinde kopyaladıysa temizle
+        if (typeof serviceAccount === 'string' && serviceAccount.startsWith('"') && serviceAccount.endsWith('"')) {
+             serviceAccount = serviceAccount.slice(1, -1);
+        }
+        // Bozuk karakterleri temizle
+        serviceAccount = serviceAccount.replace(/\\/g, ""); 
+        
+        if (!admin.apps.length) {
+            admin.initializeApp({
+                credential: admin.credential.cert(JSON.parse(serviceAccount))
+            });
+            console.log("✅ Firebase (Bildirim) bağlantısı başarılı.");
+        }
     }
 } catch (e) {
-    console.error("Firebase Hatası:", e.message);
+    console.error("🚨 Firebase Hatası (Şifre formatı bozuk olabilir):", e.message);
 }
 
 // PocketBase (Veritabanı) Kurulumu
 const pb = new PocketBase(process.env.PB_URL);
 pb.autoCancellation(false);
 
-// Finnhub (Borsa) Kurulumu [DÜZELTİLEN KISIM]
-const ApiClient = finnhub.ApiClient || finnhub.default.ApiClient;
-const api_key = ApiClient.instance.authentications['api_key'];
-api_key.apiKey = process.env.FINNHUB_API_KEY;
-const finnhubClient = new finnhub.DefaultApi();
+// Finnhub (Borsa) Kurulumu - HATASIZ MOD
+let finnhubClient = null;
+try {
+    // Versiyon uyuşmazlığını çözen sihirli satır:
+    const ApiClient = finnhub.ApiClient || finnhub.default?.ApiClient;
+    
+    if (ApiClient) {
+        const api_key = ApiClient.instance.authentications['api_key'];
+        api_key.apiKey = process.env.FINNHUB_API_KEY;
+        finnhubClient = new finnhub.DefaultApi();
+        console.log("✅ Finnhub (Borsa) bağlantısı hazır.");
+    } else {
+        console.error("⚠️ Finnhub kütüphanesi yüklenemedi (Yapı uyumsuz).");
+    }
+} catch (err) {
+    console.error("⚠️ Finnhub kurulum hatası:", err.message);
+}
 
 // --- 2. ROBOT MANTIĞI ---
 
 async function checkSignals() {
     console.log('🔍 Sinyaller kontrol ediliyor...');
     
+    if (!finnhubClient) {
+        console.log('❌ Borsa istemcisi çalışmadığı için işlem yapılamıyor.');
+        return;
+    }
+
     try {
         // Yönetici girişi yap
         await pb.admins.authWithPassword(process.env.PB_ADMIN_EMAIL, process.env.PB_ADMIN_PASSWORD);
@@ -99,7 +131,7 @@ async function checkSignals() {
         }
 
     } catch (err) {
-        console.error('🚨 Genel Robot Hatası:', err);
+        console.error('🚨 Genel Robot Hatası:', err.message);
     }
 }
 
