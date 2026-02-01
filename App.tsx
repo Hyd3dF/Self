@@ -12,6 +12,11 @@ import ProductDetailScreen from './src/screens/ecommerce/ProductDetailScreen';
 import SignalDetailScreen from './src/screens/ecommerce/SignalDetailScreen';
 import { colors } from './src/theme/colors';
 import * as Notifications from 'expo-notifications';
+import * as SplashScreen from 'expo-splash-screen';
+import { useEffect, useState, useCallback } from 'react';
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
 
 // Configure notifications to show even when app is in foreground
 Notifications.setNotificationHandler({
@@ -112,8 +117,42 @@ const Navigation = () => {
 };
 
 export default function App() {
+  const [appIsReady, setAppIsReady] = useState(false);
+
+  useEffect(() => {
+    async function prepare() {
+      try {
+        // Artificially delay for 3 seconds to show splash/logo
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        // Tell the application to render
+        setAppIsReady(true);
+      }
+    }
+
+    prepare();
+  }, []);
+
+  const onLayoutRootView = useCallback(async () => {
+    if (appIsReady) {
+      // This tells the splash screen to hide immediately! If we do this locally 
+      // it might hide before auth is checked if we aren't careful, 
+      // but we want to wait for AuthProvider too.
+      // Actually, AuthProvider internal loading state handles common layout, 
+      // but to ensure the SPLASH stays, we should coordinate.
+      // However, for simplicity and meeting the 3s requirement:
+      await SplashScreen.hideAsync();
+    }
+  }, [appIsReady]);
+
+  if (!appIsReady) {
+    return null;
+  }
+
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }} onLayout={onLayoutRootView}>
       <SafeAreaProvider style={{ backgroundColor: colors.background }}>
         <AuthProvider>
           <Navigation />

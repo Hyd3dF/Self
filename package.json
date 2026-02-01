@@ -26,6 +26,7 @@
     "expo-media-library": "~18.2.1",
     "expo-notifications": "~0.32.16",
     "expo-speech": "~14.0.8",
+    "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.0",
     "finnhub": "^2.0.13",
     "firebase-admin": "^13.6.0",
